@@ -7,7 +7,7 @@ import uuid
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.config import settings
+from app.config.settings import settings
 from app.utils.file_processor import FileProcessor
 
 router = APIRouter(prefix="/api/upload", tags=["File Upload"])
@@ -124,16 +124,17 @@ async def delete_file(file_path: str):
     """Xóa file"""
     try:
         full_path = os.path.join(settings.upload_dir, file_path)
-        
         if not os.path.exists(full_path):
-            raise HTTPException(status_code=404, detail="File not found")
-        
+            raise HTTPException(status_code=404, detail=f"File not found: {full_path}")
         os.remove(full_path)
-        
-        return {"message": "File deleted successfully"}
-        
+        return {"message": "File deleted successfully", "file_path": file_path}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        tb = traceback.format_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error deleting file '{file_path}': {type(e).__name__}: {str(e)}\nTraceback: {tb}"
+        )
 
 @router.post("/process")
 async def process_file(file_path: str, db: Session = Depends(get_db)):

@@ -13,7 +13,7 @@ model_service = ModelService()
 
 @router.get("/", response_model=ModelListResponse)
 async def get_models(
-    model_type: Optional[str] = None,
+    type: Optional[str] = None,
     is_active: Optional[bool] = None,
     page: int = 1,
     size: int = 10,
@@ -21,19 +21,19 @@ async def get_models(
 ):
     """Lấy danh sách models"""
     try:
-        result = model_service.get_models(db, model_type, is_active, page, size)
+        result = model_service.get_models(db, type, is_active, page, size)
         
         # Convert to response format
         models = []
         for model in result["models"]:
             models.append(ModelInfoResponse(
-                model_id=model.model_id,
-                model_name=model.model_name,
-                model_type=model.model_type,
+                id=model.id,
+                name=model.name,
+                type=model.type,
                 base_model=model.base_model,
-                model_path=model.model_path,
+                path=model.path,
                 hf_repo_url=model.hf_repo_url,
-                model_size=model.model_size,
+                size=model.size,
                 accuracy=model.accuracy,
                 loss=model.loss,
                 perplexity=model.perplexity,
@@ -57,25 +57,25 @@ async def get_models(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/{model_id}", response_model=ModelInfoResponse)
+@router.get("/{id}", response_model=ModelInfoResponse)
 async def get_model(
-    model_id: str,
+    id: str,
     db: Session = Depends(get_db)
 ):
     """Lấy thông tin model theo ID"""
     try:
-        model = model_service.get_model(db, model_id)
+        model = model_service.get_model(db, id)
         if not model:
             raise HTTPException(status_code=404, detail="Model not found")
         
         return ModelInfoResponse(
-            model_id=model.model_id,
-            model_name=model.model_name,
-            model_type=model.model_type,
+            id=model.id,
+            name=model.name,
+            type=model.type,
             base_model=model.base_model,
-            model_path=model.model_path,
+            path=model.path,
             hf_repo_url=model.hf_repo_url,
-            model_size=model.model_size,
+            size=model.size,
             accuracy=model.accuracy,
             loss=model.loss,
             perplexity=model.perplexity,
@@ -102,13 +102,13 @@ async def create_model(
         model = model_service.create_model(db, request)
         
         return ModelInfoResponse(
-            model_id=model.model_id,
-            model_name=model.model_name,
-            model_type=model.model_type,
+            id=model.id,
+            name=model.name,
+            type=model.type,
             base_model=model.base_model,
-            model_path=model.model_path,
+            path=model.path,
             hf_repo_url=model.hf_repo_url,
-            model_size=model.model_size,
+            size=model.size,
             accuracy=model.accuracy,
             loss=model.loss,
             perplexity=model.perplexity,
@@ -125,26 +125,26 @@ async def create_model(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.put("/{model_id}", response_model=ModelInfoResponse)
+@router.put("/{id}", response_model=ModelInfoResponse)
 async def update_model(
-    model_id: str,
+    id: str,
     update_data: dict,
     db: Session = Depends(get_db)
 ):
     """Cập nhật model"""
     try:
-        model = model_service.update_model(db, model_id, update_data)
+        model = model_service.update_model(db, id, update_data)
         if not model:
             raise HTTPException(status_code=404, detail="Model not found")
         
         return ModelInfoResponse(
-            model_id=model.model_id,
-            model_name=model.model_name,
-            model_type=model.model_type,
+            id=model.id,
+            name=model.name,
+            type=model.type,
             base_model=model.base_model,
-            model_path=model.model_path,
+            path=model.path,
             hf_repo_url=model.hf_repo_url,
-            model_size=model.model_size,
+            size=model.size,
             accuracy=model.accuracy,
             loss=model.loss,
             perplexity=model.perplexity,
@@ -161,14 +161,14 @@ async def update_model(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.delete("/{model_id}")
+@router.delete("/{id}")
 async def delete_model(
-    model_id: str,
+    id: str,
     db: Session = Depends(get_db)
 ):
     """Xóa model"""
     try:
-        success = model_service.delete_model(db, model_id)
+        success = model_service.delete_model(db, id)
         if not success:
             raise HTTPException(status_code=404, detail="Model not found")
         
@@ -177,14 +177,14 @@ async def delete_model(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/{model_id}/performance")
+@router.get("/{id}/performance")
 async def get_model_performance(
-    model_id: str,
+    id: str,
     db: Session = Depends(get_db)
 ):
     """Lấy thông tin performance của model"""
     try:
-        performance = model_service.get_model_performance(db, model_id)
+        performance = model_service.get_model_performance(db, id)
         if not performance:
             raise HTTPException(status_code=404, detail="Model not found")
         
@@ -193,9 +193,9 @@ async def get_model_performance(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.put("/{model_id}/performance")
+@router.put("/{id}/performance")
 async def update_model_performance(
-    model_id: str,
+    id: str,
     accuracy: Optional[float] = None,
     loss: Optional[float] = None,
     perplexity: Optional[float] = None,
@@ -204,7 +204,7 @@ async def update_model_performance(
     """Cập nhật performance metrics của model"""
     try:
         success = model_service.update_model_performance(
-            db, model_id, accuracy, loss, perplexity
+            db, id, accuracy, loss, perplexity
         )
         
         if not success:
@@ -225,10 +225,10 @@ async def get_base_models():
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/validate")
-async def validate_model_path(model_path: str):
+async def validate_model_path(path: str):
     """Validate model path"""
     try:
-        result = model_service.validate_model_path(model_path)
+        result = model_service.validate_model_path(path)
         return result
         
     except Exception as e:
