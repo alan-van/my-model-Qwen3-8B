@@ -44,11 +44,11 @@ def create_sample_data():
         
         # Register base Qwen3-8B model
         base_model_request = {
-            "model_name": "Qwen3-8B Base",
-            "model_type": "base",
+            "name": "Qwen3-8B Base",
+            "type": "base",
             "base_model": "Qwen/Qwen3-8B",
-            "model_path": "Qwen/Qwen3-8B",
-            "model_size": "8B",
+            "path": "Qwen/Qwen3-8B",
+            "size": "8B",
             "description": "Base Qwen3-8B model from Alibaba",
             "tags": ["base", "qwen", "8b"],
             "is_active": True
@@ -56,17 +56,17 @@ def create_sample_data():
         
         try:
             base_model = model_service.create_model(db, base_model_request)
-            logger.info(f"✅ Created base model: {base_model.model_id}")
+            logger.info(f"✅ Created base model: {base_model.id}")
         except Exception as e:
             logger.warning(f"Base model might already exist: {e}")
         
         # Create sample fine-tuned model
         finetuned_model_request = {
-            "model_name": "Qwen3-8B Fine-tuned Sample",
-            "model_type": "finetuned",
+            "name": "Qwen3-8B Fine-tuned Sample",
+            "type": "finetuned",
             "base_model": "Qwen/Qwen3-8B",
-            "model_path": "./models/sample_finetuned",
-            "model_size": "8B",
+            "path": "./models/sample_finetuned",
+            "size": "8B",
             "description": "Sample fine-tuned model for demonstration",
             "tags": ["finetuned", "qwen", "sample"],
             "is_active": True,
@@ -78,7 +78,7 @@ def create_sample_data():
         
         try:
             finetuned_model = model_service.create_model(db, finetuned_model_request)
-            logger.info(f"✅ Created sample fine-tuned model: {finetuned_model.model_id}")
+            logger.info(f"✅ Created sample fine-tuned model: {finetuned_model.id}")
         except Exception as e:
             logger.warning(f"Sample fine-tuned model might already exist: {e}")
         

@@ -10,7 +10,7 @@ class FineTuneStatus(str, Enum):
     FAILED = "failed"
 
 class FineTuneRequest(BaseModel):
-    model_name: str = Field(..., description="Tên model sau khi fine-tune")
+    name: str = Field(..., description="Tên model sau khi fine-tune")
     base_model: str = Field(default="Qwen/Qwen3-8B", description="Base model để fine-tune")
     learning_rate: float = Field(default=2e-5, description="Learning rate")
     batch_size: int = Field(default=4, description="Batch size")
@@ -35,7 +35,7 @@ class FineTuneStatusResponse(BaseModel):
     total_steps: int
     final_loss: Optional[float] = None
     final_accuracy: Optional[float] = None
-    model_path: Optional[str] = None
+    path: Optional[str] = None
     hf_repo_url: Optional[str] = None
     error_message: Optional[str] = None
     started_at: Optional[datetime] = None
@@ -44,7 +44,7 @@ class FineTuneStatusResponse(BaseModel):
 class FineTuneHistoryItem(BaseModel):
     id: int
     job_id: str
-    model_name: str
+    name: str
     base_model: str
     status: FineTuneStatus
     progress: float

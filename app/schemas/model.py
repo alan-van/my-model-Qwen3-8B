@@ -3,13 +3,13 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 class ModelInfoResponse(BaseModel):
-    model_id: str
-    model_name: str
-    model_type: str
+    id: str
+    name: str
+    type: str
     base_model: str
-    model_path: str
+    path: str
     hf_repo_url: Optional[str]
-    model_size: Optional[str]
+    size: Optional[str]
     accuracy: Optional[float]
     loss: Optional[float]
     perplexity: Optional[float]
@@ -29,12 +29,12 @@ class ModelListResponse(BaseModel):
     size: int
 
 class ModelCreateRequest(BaseModel):
-    model_name: str = Field(..., description="Tên model")
-    model_type: str = Field(..., description="Loại model (base, finetuned)")
+    name: str = Field(..., description="Tên model")
+    type: str = Field(..., description="Loại model (base, finetuned)")
     base_model: str = Field(..., description="Base model")
-    model_path: str = Field(..., description="Đường dẫn đến model")
+    path: str = Field(..., description="Đường dẫn đến model")
     hf_repo_url: Optional[str] = Field(default=None, description="Hugging Face repo URL")
-    model_size: Optional[str] = Field(default=None, description="Kích thước model")
+    size: Optional[str] = Field(default=None, description="Kích thước model")
     description: Optional[str] = Field(default=None, description="Mô tả model")
     tags: Optional[List[str]] = Field(default=None, description="Tags")
     config: Optional[Dict[str, Any]] = Field(default=None, description="Cấu hình model") 

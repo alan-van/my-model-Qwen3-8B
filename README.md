@@ -11,6 +11,7 @@
 - **Web interface** thân thiện người dùng (Streamlit)
 - **File Upload System** hỗ trợ nhiều định dạng file
 - **Model Management** quản lý và theo dõi các model đã fine-tune
+- **Automatic Tokenizer Fallback** - Tự động sử dụng local tokenizer nếu cần
 
 ## 📋 Yêu cầu hệ thống
 
@@ -34,6 +35,9 @@ venv\Scripts\activate  # Windows
 
 # Cài đặt dependencies
 pip install -r requirements.txt
+
+# Cài đặt accelerate (bắt buộc cho device_map)
+pip install accelerate
 ```
 
 ## ⚙️ Cấu hình
@@ -99,6 +103,79 @@ streamlit run app/streamlit_app.py
 ```bash
 python run.py --both
 ```
+
+## ⚡️ Tải model về local để tăng tốc và tránh timeout
+
+**Khuyến nghị:** Trước khi chạy backend lần đầu, hãy tải model về local để tránh timeout khi tải model lớn từ Hugging Face.
+
+### Bước 1: Tải model về local (khuyến nghị dùng snapshot)
+
+Chạy script sau để tải toàn bộ snapshot model về thư mục local (ví dụ cho Qwen/Qwen3-8B):
+
+```bash
+python download_snapshot.py --repo_id Qwen/Qwen3-8B --output_dir ./models/base/Qwen3-8B
+```
+
+> Nếu bạn chỉ muốn tải model/tokenizer (không phải toàn bộ snapshot), có thể dùng script download_model.py:
+> ```bash
+> python download_model.py --model_repo Qwen/Qwen3-8B --output_dir ./models/base/Qwen3-8B
+> ```
+
+### Bước 2: Cấu hình backend ưu tiên load model từ local
+
+- Mặc định, backend sẽ tự động ưu tiên load model từ `./models/base/Qwen3-8B` nếu thư mục này tồn tại và không rỗng.
+- Nếu muốn chỉ định đường dẫn khác, đặt biến môi trường:
+  ```bash
+  export BASE_MODEL_LOCAL_DIR=/duong/dan/den/thu_muc_model
+  ```
+- Sau đó khởi động lại backend.
+
+## 🔧 Troubleshooting
+
+### Lỗi thường gặp và cách khắc phục
+
+#### 1. Lỗi "accelerate required"
+```
+Error: Using a `device_map`, `tp_plan`, `torch.device` context manager or setting `torch.set_default_device(device)` requires `accelerate`.
+```
+**Giải pháp:**
+```bash
+pip install accelerate
+```
+
+#### 2. Lỗi "Qwen2Tokenizer does not exist"
+```
+Error: Tokenizer class Qwen2Tokenizer does not exist or is not currently imported.
+```
+**Giải pháp:**
+- Cập nhật transformers lên phiên bản mới nhất:
+  ```bash
+  pip install --upgrade transformers
+  ```
+- Ứng dụng đã có fallback mechanism để tự động sử dụng local tokenizer nếu cần.
+
+#### 3. Lỗi bitsandbytes GPU support
+```
+Warning: The installed version of bitsandbytes was compiled without GPU support.
+```
+**Giải pháp:**
+- Nếu bạn có GPU và muốn dùng quantization:
+  ```bash
+  pip uninstall bitsandbytes
+  pip install bitsandbytes
+  ```
+- Nếu không có GPU, có thể bỏ qua cảnh báo này.
+
+#### 4. Lỗi timeout khi tải model
+**Giải pháp:**
+- Tải model về local trước (xem phần "Tải model về local" ở trên)
+- Hoặc tăng timeout trong cấu hình
+
+#### 5. Lỗi CUDA out of memory
+**Giải pháp:**
+- Giảm batch_size trong cấu hình fine-tuning
+- Sử dụng quantization (4-bit hoặc 8-bit)
+- Giảm max_length
 
 ## 📡 API Endpoints
 
@@ -386,3 +463,49 @@ Nếu gặp vấn đề, hãy:
 1. Kiểm tra logs
 2. Chạy `python test_app.py`
 3. Tạo issue với thông tin lỗi chi tiết 
+
+## 🧹 Xoá Job History (Lịch sử Fine-tune)
+
+### Cách 1: Xoá trực tiếp trong database (SQLite)
+
+Nếu bạn dùng SQLite (file `finetuning.db`), có thể xoá job history bằng lệnh:
+
+```bash
+sqlite3 finetuning.db
+```
+Sau đó trong prompt SQLite:
+```sql
+DELETE FROM finetune_jobs;
+-- hoặc xoá từng job theo job_id:
+DELETE FROM finetune_jobs WHERE job_id = 'your_job_id';
+.exit
+```
+
+Hoặc dùng phần mềm DB Browser for SQLite để thao tác trực quan.
+
+### Cách 2: Thêm API xoá job (tuỳ chọn)
+
+Bạn có thể thêm endpoint vào `app/api/finetune.py`:
+```python
+@router.delete("/delete/{job_id}")
+async def delete_finetune_job(job_id: str, db: Session = Depends(get_db)):
+    job = db.query(FineTuneJob).filter(FineTuneJob.job_id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    db.delete(job)
+    db.commit()
+    return {"message": "Job deleted successfully"}
+```
+Hoặc xoá toàn bộ:
+```python
+@router.delete("/delete_all")
+async def delete_all_finetune_jobs(db: Session = Depends(get_db)):
+    db.query(FineTuneJob).delete()
+    db.commit()
+    return {"message": "All jobs deleted successfully"}
+```
+Sau đó gọi API này bằng curl hoặc Postman.
+
+### Cách 3: Xoá toàn bộ database
+
+Chỉ cần xoá file `finetuning.db` rồi khởi động lại backend (sẽ mất toàn bộ dữ liệu jobs, models, ...). 

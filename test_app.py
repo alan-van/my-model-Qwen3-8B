@@ -29,7 +29,7 @@ def test_imports():
         logger.info("✅ Core dependencies imported successfully")
         
         # Test app modules
-        from app.config import settings
+        from app.config.settings import settings
         from app.database import engine, Base
         from app.models import FineTuneJob, ModelInfo, ChatSession, ChatMessage
         
@@ -67,7 +67,7 @@ def test_config():
     try:
         logger.info("Testing configuration...")
         
-        from app.config import settings
+        from app.config.settings import settings
         
         logger.info(f"Model name: {settings.model_name}")
         logger.info(f"Database URL: {settings.database_url}")

@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 
 from app.database import engine, Base
 from app.api import finetune_router, chat_router, model_router, upload_router
-from app.config import settings
+from app.config.settings import settings
 
 # Setup logging
 logging.basicConfig(

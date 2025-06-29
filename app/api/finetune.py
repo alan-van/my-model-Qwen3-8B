@@ -10,7 +10,7 @@ from app.schemas.finetune import (
 )
 from app.services.finetune_service import FineTuneService
 from app.services.model_service import ModelService
-from app.config import settings
+from app.config.settings import settings
 
 router = APIRouter(prefix="/api/finetune", tags=["Fine-tuning"])
 
@@ -98,7 +98,7 @@ async def get_finetune_status(job_id: str, db: Session = Depends(get_db)):
             total_steps=job.total_steps,
             final_loss=job.final_loss,
             final_accuracy=job.final_accuracy,
-            model_path=job.model_path,
+            path=job.path,
             hf_repo_url=job.hf_repo_url,
             error_message=job.error_message,
             started_at=job.started_at,
@@ -124,7 +124,7 @@ async def get_finetune_history(
             history_items.append(FineTuneHistoryItem(
                 id=job.id,
                 job_id=job.job_id,
-                model_name=job.model_name,
+                name=job.name,
                 base_model=job.base_model,
                 status=job.status,
                 progress=job.progress,
@@ -169,15 +169,15 @@ async def register_finetuned_model(job_id: str, db: Session = Depends(get_db)):
         if job.status != "completed":
             raise HTTPException(status_code=400, detail="Job is not completed")
         
-        if not job.model_path:
+        if not job.path:
             raise HTTPException(status_code=400, detail="Model path not found")
         
         # Đăng ký model
         model = model_service.register_finetuned_model(
             db=db,
             job_id=job_id,
-            model_path=job.model_path,
-            model_name=job.model_name,
+            model_path=job.path,
+            model_name=job.name,
             base_model=job.base_model
         )
         

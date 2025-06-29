@@ -1,24 +1,24 @@
 import os
 import threading
-import time
+import uuid
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
-import logging
 
 from app.models.finetune_job import FineTuneJob
-from app.schemas.finetune import FineTuneRequest, FineTuneStatus
+from app.schemas.finetune import FineTuneStatus
+from app.schemas.finetune import FineTuneRequest
 from app.utils.model_utils import ModelUtils
 from app.utils.data_processor import DataProcessor
-from app.config import settings
-
-logger = logging.getLogger(__name__)
+from app.utils.callbacks import JobProgressCallback
+from app.config.settings import settings
+from app.log import logger
 
 class FineTuneService:
     """Service để xử lý fine-tuning"""
     
     def __init__(self):
-        self.active_jobs: Dict[str, Dict[str, Any]] = {}
+        self.active_jobs: Dict[str, threading.Thread] = {}
     
     def create_finetune_job(
         self,
@@ -28,28 +28,22 @@ class FineTuneService:
         """Tạo job fine-tuning mới"""
         try:
             # Tạo job ID
-            job_id = ModelUtils.generate_job_id()
-            
-            # Chuẩn bị dữ liệu
-            dataset, data_size = DataProcessor.prepare_finetuning_data(
-                request.data_files,
-                max_length=request.max_length
-            )
+            job_id = str(uuid.uuid4())
             
             # Tạo job record
+            data_size = len(request.data_files) if request.data_files else 0
             job = FineTuneJob(
                 job_id=job_id,
-                model_name=request.model_name,
+                name=request.name,
                 base_model=request.base_model,
+                data_files=request.data_files,
+                data_size=data_size,
                 learning_rate=request.learning_rate,
                 batch_size=request.batch_size,
                 epochs=request.epochs,
-                max_length=request.max_length,
                 warmup_steps=request.warmup_steps,
-                data_files=request.data_files,
-                data_size=data_size,
-                status=FineTuneStatus.PENDING,
-                config=request.config
+                max_length=request.max_length,
+                status=FineTuneStatus.PENDING
             )
             
             db.add(job)
@@ -71,20 +65,22 @@ class FineTuneService:
     ) -> bool:
         """Bắt đầu job fine-tuning"""
         try:
-            # Lấy job từ database
+            # Kiểm tra job
             job = db.query(FineTuneJob).filter(FineTuneJob.job_id == job_id).first()
             if not job:
-                raise ValueError(f"Job not found: {job_id}")
+                logger.error(f"Job not found: {job_id}")
+                return False
             
             if job.status != FineTuneStatus.PENDING:
-                raise ValueError(f"Job {job_id} is not in pending status")
+                logger.error(f"Job {job_id} is not in PENDING status")
+                return False
             
             # Cập nhật trạng thái
             job.status = FineTuneStatus.RUNNING
             job.started_at = datetime.now()
             db.commit()
             
-            # Chạy fine-tuning trong thread riêng
+            # Chạy job trong background thread
             thread = threading.Thread(
                 target=self._run_finetune_job,
                 args=(db, job_id)
@@ -92,11 +88,8 @@ class FineTuneService:
             thread.daemon = True
             thread.start()
             
-            # Lưu thông tin job active
-            self.active_jobs[job_id] = {
-                "thread": thread,
-                "start_time": datetime.now()
-            }
+            # Lưu thread reference
+            self.active_jobs[job_id] = thread
             
             logger.info(f"Started finetune job: {job_id}")
             return True
@@ -146,36 +139,22 @@ class FineTuneService:
                 max_length=job.max_length
             )
             
-            # Tạo trainer
+            # Tạo trainer với custom callback
             trainer = ModelUtils.create_trainer(
                 model=model,
                 tokenizer=tokenizer,
                 train_dataset=tokenized_dataset,
                 eval_dataset=None,
-                training_args=training_args
+                training_args=training_args,
+                callbacks=[JobProgressCallback(self, job_id, db)]
             )
-            
-            # Training callback để cập nhật progress
-            class ProgressCallback:
-                def __init__(self, service, job_id, db):
-                    self.service = service
-                    self.job_id = job_id
-                    self.db = db
-                
-                def on_step_end(self, args, state, control, **kwargs):
-                    if state.global_step % 10 == 0:  # Cập nhật mỗi 10 steps
-                        self.service._update_job_progress(
-                            self.db, self.job_id, state.global_step, state.max_steps
-                        )
-            
-            trainer.add_callback(ProgressCallback(self, job_id, db))
             
             # Bắt đầu training
             trainer.train()
             
             # Lưu model
             model_path = os.path.join(output_dir, "final_model")
-            ModelUtils.save_model(model, tokenizer, model_path, job.model_name)
+            ModelUtils.save_model(model, tokenizer, model_path, job.name)
             
             # Cập nhật job thành công
             self._update_job_completed(db, job_id, model_path)
@@ -216,7 +195,7 @@ class FineTuneService:
             if job:
                 job.status = FineTuneStatus.COMPLETED
                 job.progress = 1.0
-                job.model_path = model_path
+                job.path = model_path
                 job.completed_at = datetime.now()
                 db.commit()
                 

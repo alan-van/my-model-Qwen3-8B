@@ -4,7 +4,7 @@ from datetime import datetime
 
 class ChatRequest(BaseModel):
     session_id: Optional[str] = Field(default=None, description="Session ID (tạo mới nếu không có)")
-    model_id: str = Field(..., description="ID của model để sử dụng")
+    model: str = Field(..., description="ID của model để sử dụng")
     message: str = Field(..., description="Nội dung tin nhắn")
     system_prompt: Optional[str] = Field(default=None, description="System prompt")
     context_files: Optional[List[str]] = Field(default=None, description="Danh sách file context")
@@ -19,14 +19,14 @@ class ChatResponse(BaseModel):
     timestamp: datetime
 
 class ChatSessionCreate(BaseModel):
-    model_id: str = Field(..., description="ID của model")
+    model: str = Field(..., description="ID của model")
     session_name: Optional[str] = Field(default=None, description="Tên session")
     system_prompt: Optional[str] = Field(default=None, description="System prompt")
     context_files: Optional[List[str]] = Field(default=None, description="Danh sách file context")
 
 class ChatSessionResponse(BaseModel):
     session_id: str
-    model_id: str
+    model: str
     session_name: Optional[str]
     system_prompt: Optional[str]
     context_files: Optional[List[str]]

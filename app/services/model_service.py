@@ -23,21 +23,21 @@ class ModelService:
         """Tạo model mới"""
         try:
             # Kiểm tra model path có tồn tại không
-            if not os.path.exists(request.model_path):
-                raise ValueError(f"Model path not found: {request.model_path}")
+            if not os.path.exists(request.path):
+                raise ValueError(f"Model path not found: {request.path}")
             
             # Tạo model ID
             model_id = ModelUtils.generate_model_id()
             
             # Tạo model record
             model = ModelInfo(
-                model_id=model_id,
-                model_name=request.model_name,
-                model_type=request.model_type,
+                id=model_id,
+                name=request.name,
+                type=request.type,
                 base_model=request.base_model,
-                model_path=request.model_path,
+                path=request.path,
                 hf_repo_url=request.hf_repo_url,
-                model_size=request.model_size,
+                size=request.size,
                 description=request.description,
                 tags=request.tags,
                 config=request.config
@@ -61,7 +61,7 @@ class ModelService:
         model_id: str
     ) -> Optional[ModelInfo]:
         """Lấy model theo ID"""
-        return db.query(ModelInfo).filter(ModelInfo.model_id == model_id).first()
+        return db.query(ModelInfo).filter(ModelInfo.id == model_id).first()
     
     def get_models(
         self,
@@ -78,7 +78,7 @@ class ModelService:
         
         # Apply filters
         if model_type:
-            query = query.filter(ModelInfo.model_type == model_type)
+            query = query.filter(ModelInfo.type == model_type)
         
         if is_active is not None:
             query = query.filter(ModelInfo.is_active == is_active)
@@ -107,7 +107,7 @@ class ModelService:
             
             # Cập nhật các trường được phép
             allowed_fields = [
-                "model_name", "description", "tags", "config", 
+                "name", "description", "tags", "config", 
                 "accuracy", "loss", "perplexity", "is_active"
             ]
             
@@ -174,11 +174,11 @@ class ModelService:
             
             # Tạo model record
             model_request = ModelCreateRequest(
-                model_name=model_name,
-                model_type="finetuned",
+                name=model_name,
+                type="finetuned",
                 base_model=base_model,
-                model_path=model_path,
-                model_size="8B",
+                path=model_path,
+                size="8B",
                 description=f"Fine-tuned model from job {job_id}",
                 tags=["finetuned", "qwen"],
                 config=config
@@ -186,7 +186,7 @@ class ModelService:
             
             model = self.create_model(db, model_request)
             
-            logger.info(f"Registered finetuned model: {model.model_id}")
+            logger.info(f"Registered finetuned model: {model.id}")
             return model
             
         except Exception as e:
@@ -202,10 +202,9 @@ class ModelService:
         model = self.get_model(db, model_id)
         if not model:
             return {}
-        
         return {
-            "model_id": model.model_id,
-            "model_name": model.model_name,
+            "id": model.id,
+            "name": model.name,
             "accuracy": model.accuracy,
             "loss": model.loss,
             "perplexity": model.perplexity,
@@ -250,51 +249,45 @@ class ModelService:
         """Lấy danh sách base models có sẵn"""
         return [
             {
-                "model_id": "qwen3-8b",
-                "model_name": "Qwen3-8B",
-                "model_path": "Qwen/Qwen3-8B",
+                "id": "qwen3-8b",
+                "name": "Qwen3-8B",
+                "path": "Qwen/Qwen3-8B",
                 "description": "Base Qwen3-8B model from Alibaba"
             }
         ]
     
-    def validate_model_path(self, model_path: str) -> Dict[str, Any]:
+    def validate_model_path(self, path: str) -> Dict[str, Any]:
         """Validate model path"""
         result = {
             "valid": False,
             "errors": [],
             "model_info": {}
         }
-        
         try:
-            if not os.path.exists(model_path):
+            if not os.path.exists(path):
                 result["errors"].append("Model path does not exist")
                 return result
-            
             # Kiểm tra các file cần thiết
             required_files = ["config.json", "pytorch_model.bin", "tokenizer.json"]
             for file in required_files:
-                file_path = os.path.join(model_path, file)
+                file_path = os.path.join(path, file)
                 if not os.path.exists(file_path):
                     result["errors"].append(f"Required file not found: {file}")
-            
             # Đọc model info nếu có
-            model_info_path = os.path.join(model_path, "model_info.json")
+            model_info_path = os.path.join(path, "model_info.json")
             if os.path.exists(model_info_path):
                 with open(model_info_path, 'r') as f:
                     result["model_info"] = json.load(f)
-            
             result["valid"] = len(result["errors"]) == 0
-            
         except Exception as e:
             result["errors"].append(f"Error validating model path: {str(e)}")
-        
         return result
     
     def get_model_statistics(self, db: Session) -> Dict[str, Any]:
         """Lấy thống kê về models"""
         total_models = db.query(ModelInfo).count()
-        base_models = db.query(ModelInfo).filter(ModelInfo.model_type == "base").count()
-        finetuned_models = db.query(ModelInfo).filter(ModelInfo.model_type == "finetuned").count()
+        base_models = db.query(ModelInfo).filter(ModelInfo.type == "base").count()
+        finetuned_models = db.query(ModelInfo).filter(ModelInfo.type == "finetuned").count()
         active_models = db.query(ModelInfo).filter(ModelInfo.is_active == True).count()
         
         return {

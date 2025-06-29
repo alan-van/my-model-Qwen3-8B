@@ -16,11 +16,11 @@ class Settings(BaseSettings):
     finetuned_model_path: str = "./models/finetuned"
     
     # Hugging Face
-    hf_token: str = ""
-    hf_repo_id: str = ""
+    hf_token: str = "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"
+    hf_repo_id: str = "=Qwen/Qwen3-8B"
     
     # Security
-    secret_key: str = "your-secret-key-change-this"
+    secret_key: str = "tx2A4kso2qq5Jo4yCZSBoHGa1I_sOYHS0kS37-riE-g"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     

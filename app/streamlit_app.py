@@ -103,7 +103,7 @@ def show_dashboard():
                     jobs = response.json().get("jobs", [])
                     if jobs:
                         df = pd.DataFrame(jobs)
-                        st.dataframe(df[["model_name", "status", "progress", "created_at"]])
+                        st.dataframe(df[["name", "status", "progress", "created_at"]])
                     else:
                         st.info("No recent fine-tuning jobs")
                 else:
@@ -145,47 +145,78 @@ def show_finetune_page():
                 max_length = st.number_input("Max Length", value=config.get("default_max_length", 512), min_value=128, max_value=2048)
                 warmup_steps = st.number_input("Warmup Steps", value=config.get("default_warmup_steps", 100), min_value=0)
             
+            # Parse allowed_extensions
+            allowed_ext = config.get("allowed_extensions", ["csv", "txt", "pdf", "docx", "xlsx"])
+            if isinstance(allowed_ext, str):
+                try:
+                    allowed_ext = json.loads(allowed_ext)
+                except Exception:
+                    allowed_ext = ["csv", "txt", "pdf", "docx", "xlsx"]
+
             # File upload
+            st.subheader("📁 Training Data Files")
+            st.info("Supported formats: CSV, TXT, PDF, DOCX, XLSX")
+            
             uploaded_files = st.file_uploader(
                 "Upload Training Data",
-                type=config.get("allowed_extensions", ["csv", "txt", "pdf", "docx", "xlsx"]),
-                accept_multiple_files=True
+                type=allowed_ext,
+                accept_multiple_files=True,
+                help="Select one or more files for training"
             )
+            
+            # Debug info
+            if uploaded_files:
+                st.success(f"✅ {len(uploaded_files)} file(s) selected:")
+                for file in uploaded_files:
+                    st.write(f"📄 {file.name} ({file.size} bytes)")
+            else:
+                st.info("ℹ️ No files selected yet")
             
             submitted = st.form_submit_button("Start Fine-tuning")
             
             if submitted and uploaded_files:
                 # Upload files first
                 files_data = []
-                for file in uploaded_files:
-                    files = {"file": (file.name, file.getvalue(), file.type)}
-                    response = requests.post(f"{API_BASE_URL}/api/upload/file", files=files)
-                    if response.status_code == 200:
-                        result = response.json()
-                        files_data.append(result["file_path"])
+                with st.spinner("Uploading files..."):
+                    for file in uploaded_files:
+                        try:
+                            files = {"file": (file.name, file.getvalue(), file.type)}
+                            response = requests.post(f"{API_BASE_URL}/api/upload/file", files=files)
+                            if response.status_code == 200:
+                                result = response.json()
+                                files_data.append(result["file_path"])
+                                st.success(f"✅ Uploaded: {file.name}")
+                            else:
+                                st.error(f"❌ Failed to upload {file.name}: {response.text}")
+                        except Exception as e:
+                            st.error(f"❌ Error uploading {file.name}: {str(e)}")
                 
                 if files_data:
                     # Start fine-tuning
-                    finetune_data = {
-                        "model_name": model_name,
-                        "base_model": base_model,
-                        "learning_rate": learning_rate,
-                        "batch_size": batch_size,
-                        "epochs": epochs,
-                        "max_length": max_length,
-                        "warmup_steps": warmup_steps,
-                        "data_files": files_data
-                    }
-                    
-                    response = requests.post(f"{API_BASE_URL}/api/finetune/start", json=finetune_data)
-                    if response.status_code == 200:
-                        result = response.json()
-                        st.success(f"✅ Fine-tuning job started! Job ID: {result['job_id']}")
-                        st.info(f"Status: {result['status']}")
-                    else:
-                        st.error(f"❌ Error starting fine-tuning: {response.text}")
+                    with st.spinner("Starting fine-tuning job..."):
+                        finetune_data = {
+                            "name": model_name,
+                            "base_model": base_model,
+                            "learning_rate": learning_rate,
+                            "batch_size": batch_size,
+                            "epochs": epochs,
+                            "max_length": max_length,
+                            "warmup_steps": warmup_steps,
+                            "data_files": files_data
+                        }
+                        
+                        try:
+                            response = requests.post(f"{API_BASE_URL}/api/finetune/start", json=finetune_data)
+                            if response.status_code == 200:
+                                result = response.json()
+                                st.success(f"✅ Fine-tuning job started! Job ID: {result['job_id']}")
+                                st.info(f"Status: {result['status']}")
+                            else:
+                                st.error(f"❌ Error starting fine-tuning: {response.text}")
+                        except Exception as e:
+                            st.error(f"❌ Error starting fine-tuning: {str(e)}")
                 else:
-                    st.error("❌ Error uploading files")
+                    st.error("❌ No files were uploaded successfully")
             elif submitted and not uploaded_files:
                 st.error("❌ Please upload training data files")
     
@@ -242,7 +273,7 @@ def show_finetune_page():
                 st.dataframe(df)
                 
                 # Chart
-                fig = px.line(df, x="created_at", y="progress", color="model_name", 
+                fig = px.line(df, x="created_at", y="progress", color="name", 
                              title="Fine-tuning Progress Over Time")
                 st.plotly_chart(fig, use_container_width=True)
             else:
@@ -266,7 +297,7 @@ def show_chat_page():
         return
     
     # Model selection
-    model_options = {f"{m['model_name']} ({m['model_id']})": m['model_id'] for m in models}
+    model_options = {f"{m['name']} ({m['model_id']})": m['model_id'] for m in models}
     selected_model = st.selectbox("Select Model", list(model_options.keys()))
     model_id = model_options[selected_model]
     
@@ -347,13 +378,13 @@ def show_models_page():
                 # Filter options
                 col1, col2 = st.columns(2)
                 with col1:
-                    model_type_filter = st.selectbox("Filter by Type", ["All"] + list(df["model_type"].unique()))
+                    model_type_filter = st.selectbox("Filter by Type", ["All"] + list(df["type"].unique()))
                 with col2:
                     active_filter = st.selectbox("Filter by Status", ["All", True, False])
                 
                 # Apply filters
                 if model_type_filter != "All":
-                    df = df[df["model_type"] == model_type_filter]
+                    df = df[df["type"] == model_type_filter]
                 if active_filter != "All":
                     df = df[df["is_active"] == active_filter]
                 
@@ -361,7 +392,7 @@ def show_models_page():
                 
                 # Model actions
                 st.subheader("Model Actions")
-                selected_model_id = st.selectbox("Select Model", df["model_id"].tolist())
+                selected_model_id = st.selectbox("Select Model", df["id"].tolist())
                 
                 col1, col2, col3 = st.columns(3)
                 with col1:
@@ -373,13 +404,22 @@ def show_models_page():
                 
                 with col2:
                     if st.button("Delete Model"):
-                        if st.confirm("Are you sure you want to delete this model?"):
+                        st.session_state["confirm_delete_model"] = selected_model_id
+                    if (
+                        st.session_state.get("confirm_delete_model") == selected_model_id
+                    ):
+                        st.warning("Are you sure you want to delete this model?")
+                        if st.button("Yes, delete model", key="confirm_delete_model_btn"):
                             response = requests.delete(f"{API_BASE_URL}/api/models/{selected_model_id}")
                             if response.status_code == 200:
                                 st.success("Model deleted successfully!")
+                                st.session_state["confirm_delete_model"] = None
                                 st.rerun()
                             else:
                                 st.error(f"Error deleting model: {response.text}")
+                                st.session_state["confirm_delete_model"] = None
+                        if st.button("Cancel", key="cancel_delete_model_btn"):
+                            st.session_state["confirm_delete_model"] = None
                 
                 with col3:
                     if st.button("Refresh"):
@@ -420,8 +460,8 @@ def show_models_page():
                         
                         if not perf_df.empty:
                             fig = px.scatter(perf_df, x="accuracy", y="loss", 
-                                           color="model_type", size="training_data_size",
-                                           hover_data=["model_name"],
+                                           color="type", size="size",
+                                           hover_data=["name"],
                                            title="Model Performance Comparison")
                             st.plotly_chart(fig, use_container_width=True)
 
@@ -491,8 +531,6 @@ def show_upload_page():
                         if response.status_code == 200:
                             result = response.json()
                             st.json(result)
-                        else:
-                            st.error(f"Error processing file: {response.text}")
                 
                 with col2:
                     if st.button("Download File"):
@@ -507,14 +545,23 @@ def show_upload_page():
                 
                 with col3:
                     if st.button("Delete File"):
-                        if st.confirm("Are you sure you want to delete this file?"):
-                            file_path = df[df["filename"] == selected_file]["file_path"].iloc[0]
-                            response = requests.delete(f"{API_BASE_URL}/api/upload/file/{file_path}")
+                        st.session_state["confirm_delete_file"] = selected_file
+                    if (
+                        st.session_state.get("confirm_delete_file") == selected_file
+                    ):
+                        st.warning("Are you sure you want to delete this file?")
+                        if st.button("Yes, delete file", key="confirm_delete_file_btn"):
+                            file_name = selected_file  # Only the filename, not the full path
+                            response = requests.delete(f"{API_BASE_URL}/api/upload/file/{file_name}")
                             if response.status_code == 200:
                                 st.success("File deleted successfully!")
+                                st.session_state["confirm_delete_file"] = None
                                 st.rerun()
                             else:
                                 st.error(f"Error deleting file: {response.text}")
+                                st.session_state["confirm_delete_file"] = None
+                        if st.button("Cancel", key="cancel_delete_file_btn"):
+                            st.session_state["confirm_delete_file"] = None
             else:
                 st.info("No files uploaded yet")
         else:
