@@ -448,6 +448,8 @@ python init_db.py
 ## 📝 License
 
 MIT License
+Contact name: VanLQ
+Mobile: (+84) 988.534.534
 
 ## 🤝 Contributing
 
