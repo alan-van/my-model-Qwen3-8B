@@ -251,7 +251,7 @@ curl -X POST "http://localhost:8000/api/chat/session" \
 #### 6. Send Chat Message
 ```bash
 curl -X POST "http://localhost:8000/api/chat/send" \
-  -H "Content-Type: application/json" \
+  -H "Content-Type: application/json" I am running a few minutes late; my previous meeting is running over.
   -d '{
     "session_id": "session_12345678",
     "message": "Hello, how are you?",
@@ -447,9 +447,9 @@ python init_db.py
 
 ## 📝 License
 
-MIT License
-Contact name: VanLQ
-Mobile: (+84) 988.534.534
+**MIT License** 
+**Contact name:** VanLQ 
+**Mobile:** (+84) 988.534.534
 
 ## 🤝 Contributing
 
